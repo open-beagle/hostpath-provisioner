@@ -1,7 +1,7 @@
 platform: 10.11.92.33
 
 workspace:
-  path: src/github.com/theupdateframework/notary
+  path: src/kubevirt.io/hostpath-provisioner
 
 clone:
   git:
