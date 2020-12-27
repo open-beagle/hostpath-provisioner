@@ -27,7 +27,7 @@ pipeline:
       - /var/run/docker.sock:/var/run/docker.sock
     base: registry.cn-qingdao.aliyuncs.com/wod/debian:buster-slim
     dockerfile: .beagle/dockerfile
-    repo: wod/awecloud-hostpath-provisioner
+    repo: wod/hostpath-provisioner
     version: "v0.5.1"
     args: "TARGETOS=linux,TARGETARCH=amd64"
     registry: registry.cn-qingdao.aliyuncs.com
@@ -44,7 +44,7 @@ pipeline:
       - /var/run/docker.sock:/var/run/docker.sock
     base: registry.cn-qingdao.aliyuncs.com/wod/debian:buster-slim-arm64
     dockerfile: .beagle/dockerfile
-    repo: wod/awecloud-hostpath-provisioner
+    repo: wod/hostpath-provisioner
     version: "v0.5.1"
     channel: arm64
     args: "TARGETOS=linux,TARGETARCH=arm64"
@@ -62,7 +62,7 @@ pipeline:
       - /var/run/docker.sock:/var/run/docker.sock
     base: registry.cn-qingdao.aliyuncs.com/wod/debian:buster-slim-ppc64le
     dockerfile: .beagle/dockerfile
-    repo: wod/awecloud-hostpath-provisioner
+    repo: wod/hostpath-provisioner
     version: "v0.5.1"
     channel: ppc64le
     args: "TARGETOS=linux,TARGETARCH=ppc64le"
@@ -80,7 +80,7 @@ pipeline:
       - /var/run/docker.sock:/var/run/docker.sock
     base: registry.cn-qingdao.aliyuncs.com/wod/debian:buster-slim-mips64le
     dockerfile: .beagle/dockerfile
-    repo: wod/awecloud-hostpath-provisioner
+    repo: wod/hostpath-provisioner
     version: "v0.5.1"
     channel: mips64le
     args: "TARGETOS=linux,TARGETARCH=mips64le"
