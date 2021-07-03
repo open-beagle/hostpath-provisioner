@@ -10,7 +10,7 @@ LABEL maintainer=${AUTHOR} version=${VERSION}
 ARG TARGETOS
 ARG TARGETARCH
 
-COPY ./dist/hostpath-provisioner-$TARGETOS-$TARGETARCH /hostpath-provisioner
+COPY ./hostpath-provisioner-$TARGETOS-$TARGETARCH /hostpath-provisioner
 
 CMD [ "/hostpath-provisioner" ]
 
