@@ -112,7 +112,7 @@ steps:
       - name: docker
         path: /var/run/docker.sock
     settings:
-      platforms: linux/amd64,linux/arm64,linux/ppc64le
+      platforms: linux/amd64,linux/arm64,linux/ppc64le,linux/mips64le
       template: registry.cn-qingdao.aliyuncs.com/wod/hostpath-provisioner:v0.10.0-ARCH
       target: registry.cn-qingdao.aliyuncs.com/wod/hostpath-provisioner:v0.10.0
       username:
