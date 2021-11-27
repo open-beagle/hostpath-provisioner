@@ -16,28 +16,40 @@
 
 KUBEVIRT_PROVIDER?=k8s-1.20
 HPP_IMAGE?=hostpath-provisioner
+HPP_CSI_IMAGE?=hostpath-csi-driver
 TAG?=latest
 DOCKER_REPO?=kubevirt
 ARTIFACTS_PATH?=_out
+GOLANG_VER?=1.16.8
 
 all: controller hostpath-provisioner
 
-controller:
-	CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' controller
+hostpath-provisioner:
+	GOLANG_VER=${GOLANG_VER} ./hack/build-provisioner.sh
 
-hostpath-provisioner: controller
-	CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o _out/hostpath-provisioner cmd/provisioner/hostpath-provisioner.go
+hostpath-csi-driver:
+	GOLANG_VER=${GOLANG_VER} ./hack/build-csi.sh
 
-image: hostpath-provisioner
-	docker build -t $(DOCKER_REPO)/$(HPP_IMAGE):$(TAG) -f Dockerfile .
+image: image-controller image-csi
 
-push: hostpath-provisioner image
+push: push-controller push-csi
+
+push-controller: hostpath-provisioner image
 	docker push $(DOCKER_REPO)/$(HPP_IMAGE):$(TAG)
+
+image-controller: hostpath-provisioner
+	docker build -t $(DOCKER_REPO)/$(HPP_IMAGE):$(TAG) -f Dockerfile.controller .
+
+image-csi: hostpath-csi-driver
+	docker build -t $(DOCKER_REPO)/$(HPP_CSI_IMAGE):$(TAG) -f Dockerfile.csi .
+
+push-csi: hostpath-csi-driver image-csi
+	docker push $(DOCKER_REPO)/$(HPP_CSI_IMAGE):$(TAG)
 
 clean:
 	rm -rf _out
 
-build: clean dep controller hostpath-provisioner
+build: clean hostpath-provisioner hostpath-csi-driver
 
 cluster-up:
 	KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER} ./cluster-up/up.sh
@@ -52,8 +64,12 @@ cluster-clean:
 	KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER} ./cluster-sync/clean.sh
 
 test:
-	go test -v ./cmd/... ./controller/...
-	hack/run-lint-checks.sh
+	GOLANG_VER=${GOLANG_VER} ./hack/run-unit-test.sh
+	hack/language.sh
 
 test-functional:
-	KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER} gotestsum --format short-verbose --junitfile ${ARTIFACTS_PATH}/junit.functest.xml -- ./tests/... -master="" -kubeconfig="../_ci-configs/$(KUBEVIRT_PROVIDER)/.kubeconfig"
+	go mod vendor
+	KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER} gotestsum --format short-verbose --junitfile ${ARTIFACTS_PATH}/junit.functest.xml -- ./tests/... -kubeurl="" -kubeconfig="../_ci-configs/$(KUBEVIRT_PROVIDER)/.kubeconfig"
+
+test-sanity:
+	DOCKER_REPO=${DOCKER_REPO} hack/sanity.sh
