@@ -1,14 +1,47 @@
-From 34a14bf0e9a1658ae6f6587769b929dabc2ac9b2 Mon Sep 17 00:00:00 2001
+From a25bb406c7442245d1248342dede859797ffa9ef Mon Sep 17 00:00:00 2001
 From: shucheng <shucheng@bd-apaas.com>
-Date: Mon, 24 May 2021 21:12:48 +0800
+Date: Sat, 27 Nov 2021 20:46:19 +0800
 Subject: [PATCH] provisioner
 
 ---
- cmd/provisioner/hostpath-provisioner.go      | 14 +++++++-------
- cmd/provisioner/hostpath-provisioner_test.go |  8 ++++----
- tests/pvc_test.go                            |  6 +++---
- 3 files changed, 14 insertions(+), 14 deletions(-)
+ .../certcreator/certlib/selfsign.go                |  2 +-
+ cmd/plugin/plugin.go                               |  2 +-
+ cmd/provisioner/hostpath-provisioner.go            | 14 +++++++-------
+ cmd/provisioner/hostpath-provisioner_test.go       |  8 ++++----
+ sanity/sanity_test.go                              |  7 +++----
+ tests/common.go                                    |  9 ++++-----
+ tests/pvc_test.go                                  | 11 ++++++-----
+ .../pkg/apis/hostpathprovisioner/register.go       |  2 +-
+ .../v1alpha1/zz_generated.openapi.go               | 13 +++++++------
+ .../v1beta1/zz_generated.openapi.go                | 13 +++++++------
+ 10 files changed, 41 insertions(+), 40 deletions(-)
 
+diff --git a/cluster-up/cluster/kind-k8s-sriov-1.17.0/certcreator/certlib/selfsign.go b/cluster-up/cluster/kind-k8s-sriov-1.17.0/certcreator/certlib/selfsign.go
+index 65b5730..6e7a002 100644
+--- a/cluster-up/cluster/kind-k8s-sriov-1.17.0/certcreator/certlib/selfsign.go
++++ b/cluster-up/cluster/kind-k8s-sriov-1.17.0/certcreator/certlib/selfsign.go
+@@ -67,7 +67,7 @@ func (s *SelfSignedCertificate) Generate() error {
+ 		SerialNumber: big.NewInt(randomSource.Int63()),
+ 		Subject: pkix.Name{
+ 			CommonName:   s.CommonName,
+-			Organization: []string{"kubevirt.io"},
++			Organization: []string{"bcc.bd-apaas.com"},
+ 		},
+ 		NotBefore:    time.Now(),
+ 		NotAfter:     time.Now().AddDate(1, 0, 0),
+diff --git a/cmd/plugin/plugin.go b/cmd/plugin/plugin.go
+index ff86ced..f7efaf2 100644
+--- a/cmd/plugin/plugin.go
++++ b/cmd/plugin/plugin.go
+@@ -33,7 +33,7 @@ func main() {
+ 	klog.InitFlags(nil)
+ 	flag.Set("logtostderr", "true")
+ 	flag.StringVar(&cfg.Endpoint, "endpoint", "unix://tmp/csi.sock", "CSI endpoint")
+-	flag.StringVar(&cfg.DriverName, "drivername", "hostpath.csi.kubevirt.io", "name of the driver")
++	flag.StringVar(&cfg.DriverName, "drivername", "hostpath.csi.bcc.bd-apaas.com", "name of the driver")
+ 	flag.StringVar(&cfg.DataDir, "datadir", "/csi-data-dir", "directory where volumes and snapshots will be created")
+ 	flag.StringVar(&cfg.NodeID, "nodeid", "", "node id")
+ 	flag.StringVar(&cfg.Version, "version", "", "version of the plugin")
 diff --git a/cmd/provisioner/hostpath-provisioner.go b/cmd/provisioner/hostpath-provisioner.go
 index 049125c..96e05c4 100644
 --- a/cmd/provisioner/hostpath-provisioner.go
@@ -63,7 +96,7 @@ index 049125c..96e05c4 100644
  	}
  
 diff --git a/cmd/provisioner/hostpath-provisioner_test.go b/cmd/provisioner/hostpath-provisioner_test.go
-index 6ea3953..65500e8 100644
+index d21d5f7..1622ba9 100644
 --- a/cmd/provisioner/hostpath-provisioner_test.go
 +++ b/cmd/provisioner/hostpath-provisioner_test.go
 @@ -32,7 +32,7 @@ import (
@@ -95,37 +128,231 @@ index 6ea3953..65500e8 100644
  			},
  		},
  		Spec: v1.PersistentVolumeSpec{
+diff --git a/sanity/sanity_test.go b/sanity/sanity_test.go
+index 02254c4..ccd1e90 100644
+--- a/sanity/sanity_test.go
++++ b/sanity/sanity_test.go
+@@ -46,7 +46,7 @@ func TestMyDriver(t *testing.T) {
+ 	//... setup driver ...
+ 	cfg := &hostpath.Config{}
+ 	cfg.Endpoint = filepath.Join(tempDir, sanityEndpoint)
+-	cfg.DriverName = "hostpath.csi.kubevirt.io"
++	cfg.DriverName = "hostpath.csi.bcc.bd-apaas.com"
+ 	cfg.DataDir = volumeDir
+ 	cfg.Version = "test-version"
+ 	cfg.NodeID = "testnode"
+@@ -54,10 +54,10 @@ func TestMyDriver(t *testing.T) {
+ 	driver, err := hostpath.NewHostPathDriver(cfg)
+ 	Expect(err).ToNot(HaveOccurred())
+ 
+-	go func() { 		
++	go func() {
+ 		err := driver.Run()
+ 		Expect(err).ToNot(HaveOccurred())
+-	}() 
++	}()
+ 
+ 	testConfig := sanity.NewTestConfig()
+ 	// Set configuration options as needed
+@@ -67,4 +67,3 @@ func TestMyDriver(t *testing.T) {
+ 	// Now call the test suite
+ 	sanity.Test(t, testConfig)
+ }
+-
+diff --git a/tests/common.go b/tests/common.go
+index aea528c..5338634 100644
+--- a/tests/common.go
++++ b/tests/common.go
+@@ -39,8 +39,8 @@ import (
+ )
+ 
+ var (
+-	kubeConfig  = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
+-	kubeURL     = flag.String("kubeurl", "", "kube URL url:port")
++	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
++	kubeURL    = flag.String("kubeurl", "", "kube URL url:port")
+ )
+ 
+ // Common allocation units
+@@ -50,8 +50,8 @@ const (
+ 	GiB int64 = 1024 * MiB
+ 	TiB int64 = 1024 * GiB
+ 
+-	csiProvisionerName = "kubevirt.io.hostpath-provisioner"
+-	legacyProvisionerName = "kubevirt.io/hostpath-provisioner"
++	csiProvisionerName    = "bcc.bd-apaas.com.hostpath-provisioner"
++	legacyProvisionerName = "bcc.bd-apaas.com/hostpath-provisioner"
+ )
+ 
+ func setupTestCase(t *testing.T) (func(*testing.T), *kubernetes.Clientset) {
+@@ -207,4 +207,3 @@ func isCSIStorageClass(k8sClient *kubernetes.Clientset) bool {
+ 	gomega.Expect(sc.Name).To(gomega.Equal(csiStorageClassName))
+ 	return sc.Provisioner == csiProvisionerName
+ }
+-
 diff --git a/tests/pvc_test.go b/tests/pvc_test.go
-index 2813f51..d7e48ad 100644
+index 0672f47..025524c 100644
 --- a/tests/pvc_test.go
 +++ b/tests/pvc_test.go
-@@ -21,7 +21,7 @@ func TestCreatePVCOnNode1(t *testing.T) {
+@@ -31,10 +31,11 @@ import (
+ )
+ 
+ const (
+-	csiStorageClassName = "hostpath-csi"
+-	legacyStorageClassName = "hostpath-provisioner"
++	csiStorageClassName             = "hostpath-csi"
++	legacyStorageClassName          = "hostpath-provisioner"
+ 	legacyStorageClassNameImmediate = "hostpath-provisioner-immediate"
+ )
++
+ func TestCreatePVCOnNode1(t *testing.T) {
+ 	RegisterTestingT(t)
+ 	tearDown, ns, k8sClient := setupTestCaseNs(t)
+@@ -43,7 +44,7 @@ func TestCreatePVCOnNode1(t *testing.T) {
  	nodes, err := getAllNodes(k8sClient)
  	Expect(err).ToNot(HaveOccurred())
  	annotations := make(map[string]string)
 -	annotations["kubevirt.io/provisionOnNode"] = nodes.Items[0].Name
 +	annotations["bcc.bd-apaas.com/provisionOnNode"] = nodes.Items[0].Name
  
- 	pvc := createPVCDef(ns.Name, "hostpath-provisioner-immediate", annotations)
+ 	pvc := createPVCDef(ns.Name, legacyStorageClassNameImmediate, annotations)
  	defer func() {
-@@ -116,7 +116,7 @@ func TestPVCSize(t *testing.T) {
- 	nodes, err := getAllNodes(k8sClient)
- 	Expect(err).ToNot(HaveOccurred())
- 	annotations := make(map[string]string)
--	annotations["kubevirt.io/provisionOnNode"] = nodes.Items[0].Name
-+	annotations["bcc.bd-apaas.com/provisionOnNode"] = nodes.Items[0].Name
+@@ -214,8 +215,8 @@ func createPVCDef(namespace, storageClassName string, annotations map[string]str
+ 	return &corev1.PersistentVolumeClaim{
+ 		ObjectMeta: metav1.ObjectMeta{
+ 			GenerateName: "test-pvc",
+-			Namespace:   namespace,
+-			Annotations: annotations,
++			Namespace:    namespace,
++			Annotations:  annotations,
+ 		},
+ 		Spec: corev1.PersistentVolumeClaimSpec{
+ 			AccessModes: []corev1.PersistentVolumeAccessMode{
+diff --git a/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/register.go b/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/register.go
+index 456a326..2a3011e 100644
+--- a/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/register.go
++++ b/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/register.go
+@@ -2,5 +2,5 @@ package hostpathprovisioner
  
- 	pvc := createPVCDef(ns.Name, "hostpath-provisioner-immediate", annotations)
- 	defer func() {
-@@ -216,7 +216,7 @@ func getHostpathPVs(allPvs []corev1.PersistentVolume) []corev1.PersistentVolume
- 	result := make([]corev1.PersistentVolume, 0)
- 	for _, pv := range allPvs {
- 		val, ok := pv.GetAnnotations()["pv.kubernetes.io/provisioned-by"]
--		if ok && val == "kubevirt.io/hostpath-provisioner" {
-+		if ok && val == "bcc.bd-apaas.com/hostpath-provisioner" {
- 			result = append(result, pv)
- 		}
+ // GroupName is the group name used in this package
+ const (
+-	GroupName = "hostpathprovisioner.kubevirt.io"
++	GroupName = "hostpathprovisioner.bcc.bd-apaas.com"
+ )
+diff --git a/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1/zz_generated.openapi.go b/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1/zz_generated.openapi.go
+index f5c25b7..b9ca83b 100644
+--- a/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1/zz_generated.openapi.go
++++ b/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1/zz_generated.openapi.go
+@@ -1,3 +1,4 @@
++//go:build !ignore_autogenerated
+ // +build !ignore_autogenerated
+ 
+ /*
+@@ -65,19 +66,19 @@ func schema_pkg_apis_hostpathprovisioner_v1alpha1_HostPathProvisioner(ref common
+ 					},
+ 					"spec": {
+ 						SchemaProps: spec.SchemaProps{
+-							Ref: ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerSpec"),
++							Ref: ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerSpec"),
+ 						},
+ 					},
+ 					"status": {
+ 						SchemaProps: spec.SchemaProps{
+-							Ref: ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerStatus"),
++							Ref: ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerStatus"),
+ 						},
+ 					},
+ 				},
+ 			},
+ 		},
+ 		Dependencies: []string{
+-			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerSpec", "kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerStatus"},
++			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerSpec", "bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.HostPathProvisionerStatus"},
  	}
+ }
+ 
+@@ -98,13 +99,13 @@ func schema_pkg_apis_hostpathprovisioner_v1alpha1_HostPathProvisionerSpec(ref co
+ 					"pathConfig": {
+ 						SchemaProps: spec.SchemaProps{
+ 							Description: "PathConfig describes the location and layout of PV storage on nodes",
+-							Ref:         ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.PathConfig"),
++							Ref:         ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.PathConfig"),
+ 						},
+ 					},
+ 					"workload": {
+ 						SchemaProps: spec.SchemaProps{
+ 							Description: "Restrict on which nodes HPP workload pods will be scheduled",
+-							Ref:         ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.NodePlacement"),
++							Ref:         ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.NodePlacement"),
+ 						},
+ 					},
+ 				},
+@@ -112,7 +113,7 @@ func schema_pkg_apis_hostpathprovisioner_v1alpha1_HostPathProvisionerSpec(ref co
+ 			},
+ 		},
+ 		Dependencies: []string{
+-			"kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.NodePlacement", "kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.PathConfig"},
++			"bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.NodePlacement", "bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1alpha1.PathConfig"},
+ 	}
+ }
+ 
+diff --git a/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1/zz_generated.openapi.go b/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1/zz_generated.openapi.go
+index a9234ad..e79ab85 100644
+--- a/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1/zz_generated.openapi.go
++++ b/vendor/kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1/zz_generated.openapi.go
+@@ -1,3 +1,4 @@
++//go:build !ignore_autogenerated
+ // +build !ignore_autogenerated
+ 
+ /*
+@@ -65,19 +66,19 @@ func schema_pkg_apis_hostpathprovisioner_v1beta1_HostPathProvisioner(ref common.
+ 					},
+ 					"spec": {
+ 						SchemaProps: spec.SchemaProps{
+-							Ref: ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerSpec"),
++							Ref: ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerSpec"),
+ 						},
+ 					},
+ 					"status": {
+ 						SchemaProps: spec.SchemaProps{
+-							Ref: ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerStatus"),
++							Ref: ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerStatus"),
+ 						},
+ 					},
+ 				},
+ 			},
+ 		},
+ 		Dependencies: []string{
+-			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerSpec", "kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerStatus"},
++			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerSpec", "bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.HostPathProvisionerStatus"},
+ 	}
+ }
+ 
+@@ -98,13 +99,13 @@ func schema_pkg_apis_hostpathprovisioner_v1beta1_HostPathProvisionerSpec(ref com
+ 					"pathConfig": {
+ 						SchemaProps: spec.SchemaProps{
+ 							Description: "PathConfig describes the location and layout of PV storage on nodes",
+-							Ref:         ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.PathConfig"),
++							Ref:         ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.PathConfig"),
+ 						},
+ 					},
+ 					"workload": {
+ 						SchemaProps: spec.SchemaProps{
+ 							Description: "Restrict on which nodes HPP workload pods will be scheduled",
+-							Ref:         ref("kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.NodePlacement"),
++							Ref:         ref("bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.NodePlacement"),
+ 						},
+ 					},
+ 				},
+@@ -112,7 +113,7 @@ func schema_pkg_apis_hostpathprovisioner_v1beta1_HostPathProvisionerSpec(ref com
+ 			},
+ 		},
+ 		Dependencies: []string{
+-			"kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.NodePlacement", "kubevirt.io/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.PathConfig"},
++			"bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.NodePlacement", "bcc.bd-apaas.com/hostpath-provisioner-operator/pkg/apis/hostpathprovisioner/v1beta1.PathConfig"},
+ 	}
+ }
+ 
 -- 
 2.25.1
 
