@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-"k8s-1.21"}
+KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-"k8s-1.22"}
 KUBEVIRT_NUM_NODES=${KUBEVIRT_NUM_NODES:-1}
 HPP_NAMESPACE=${HPP_NAMESPACE:-"hostpath-provisioner"}
 
@@ -68,67 +68,26 @@ EOF
 fi
 
 if [ ${HPP_NAMESPACE} == "hostpath-provisioner" ]; then
-_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/master/deploy/namespace.yaml
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/namespace.yaml
 fi
-_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/master/deploy/operator.yaml -n ${HPP_NAMESPACE}
+_kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
+_kubectl wait --for=condition=available -n cert-manager --timeout=120s --all deployments
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/webhook.yaml -n hostpath-provisioner
+echo "Deploying"
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/operator.yaml -n ${HPP_NAMESPACE}
 
-# Remove deployment
-#_kubectl delete deployment hostpath-provisioner-operator -n hostpath-provisioner --ignore-not-found
-# Redeploy with the correct image name.
-  cat <<EOF | _kubectl apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hostpath-provisioner-operator
-  namespace: ${HPP_NAMESPACE}
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      name: hostpath-provisioner-operator
-  template:
-    metadata:
-      labels:
-        name: hostpath-provisioner-operator
-    spec:
-      serviceAccountName: hostpath-provisioner-operator
-      containers:
-        - name: hostpath-provisioner-operator
-          # Replace this with the built image name
-          image: quay.io/kubevirt/hostpath-provisioner-operator:latest
-          command:
-          - hostpath-provisioner-operator
-          imagePullPolicy: Always
-          env:
-            - name: WATCH_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: OPERATOR_NAME
-              value: "hostpath-provisioner-operator"
-            - name: PROVISIONER_IMAGE
-              value: "registry:5000/hostpath-provisioner:latest"
-            - name: CSI_PROVISIONER_IMAGE
-              value: "registry:5000/hostpath-csi-driver:latest"
-            - name: EXTERNAL_HEALTH_MON_IMAGE
-              value: "k8s.gcr.io/sig-storage/csi-external-health-monitor-controller:v0.3.0"
-            - name: NODE_DRIVER_REG_IMAGE
-              value: "k8s.gcr.io/sig-storage/csi-node-driver-registrar:v2.2.0"
-            - name: LIVENESS_PROVE_IMAGE
-              value: "k8s.gcr.io/sig-storage/livenessprobe:v2.3.0"
-            - name: CSI_SIG_STORAGE_PROVISIONER_IMAGE
-              value: "k8s.gcr.io/sig-storage/csi-provisioner:v2.2.1"
-            - name: VERBOSITY
-              value: "3"
-EOF
+echo "Waiting for it to be ready"
+_kubectl rollout status -n hostpath-provisioner deployment/hostpath-provisioner-operator --timeout=120s
 
-_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/master/deploy/hostpathprovisioner_cr.yaml
-_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/master/deploy/storageclass-wffc.yaml
-_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/master/deploy/storageclass-wffc-csi.yaml
+echo "Updating deployment"
+_kubectl get pods -n hostpath-provisioner
+# patch the correct development image name.
+_kubectl patch deployment hostpath-provisioner-operator -n hostpath-provisioner --patch-file cluster-sync/patch.yaml
+
+_kubectl rollout status -n hostpath-provisioner deployment/hostpath-provisioner-operator --timeout=120s
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/hostpathprovisioner_legacy_cr.yaml
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/storageclass-wffc.yaml
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/storageclass-wffc-legacy-csi.yaml
 
 cat <<EOF | _kubectl apply -f -
 apiVersion: storage.k8s.io/v1
@@ -157,6 +116,14 @@ hpp_obj=$(_kubectl get hostpathprovisioner -o yaml)
 echo $hpp_obj
 exit 1
 fi
+
+function configure_prometheus {
+  if _kubectl get crd prometheuses.monitoring.coreos.com; then
+    _kubectl patch prometheus k8s -n monitoring --type=json -p '[{"op": "replace", "path": "/spec/ruleSelector", "value":{}}, {"op": "replace", "path": "/spec/ruleNamespaceSelector", "value":{"matchLabels": {"kubernetes.io/metadata.name": "hostpath-provisioner"}}}]'
+  fi
+}
+
+configure_prometheus
 
 function check_structural_schema {
   for crd in "$@"; do

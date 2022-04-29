@@ -17,7 +17,7 @@ source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
 
 export KUBEVIRT_NUM_NODES=2
-export KUBEVIRT_PROVIDER=k8s-1.21
+export KUBEVIRT_PROVIDER=k8s-1.22
 make cluster-down
 make cluster-up
 
@@ -66,18 +66,34 @@ DOCKER_REPO=${registry} make push
 
 #install hpp
 _kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/namespace.yaml
-_kubectl apply -f deploy/tests/operator.yaml -n hostpath-provisioner
-_kubectl apply -f deploy/tests/hostpathprovisioner_cr.yaml
-_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/storageclass-wffc-csi.yaml
+_kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
+_kubectl wait --for=condition=available -n cert-manager --timeout=120s --all deployments
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/webhook.yaml -n hostpath-provisioner
+echo "Deploying"
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/operator.yaml -n hostpath-provisioner
+
+echo "Waiting for it to be ready"
+_kubectl rollout status -n hostpath-provisioner deployment/hostpath-provisioner-operator --timeout=120s
+
+echo "Updating deployment"
+_kubectl get pods -n hostpath-provisioner
+# patch the correct development image name.
+_kubectl patch deployment hostpath-provisioner-operator -n hostpath-provisioner --patch-file cluster-sync/patch.yaml
+_kubectl rollout status -n hostpath-provisioner deployment/hostpath-provisioner-operator --timeout=120s
+_kubectl wait --for=condition=available deployment -n hostpath-provisioner hostpath-provisioner-operator
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/hostpathprovisioner_legacy_cr.yaml
+_kubectl apply -f https://raw.githubusercontent.com/kubevirt/hostpath-provisioner-operator/main/deploy/storageclass-wffc-legacy-csi.yaml
 #Wait for hpp to be available.
 _kubectl wait hostpathprovisioners.hostpathprovisioner.kubevirt.io/hostpath-provisioner --for=condition=Available --timeout=480s
+
+_kubectl get sc hostpath-csi -o yaml
 
 export KUBE_SSH_KEY_PATH=./vagrant.key
 export KUBE_SSH_USER=vagrant
 
 echo "KUBE_SSH_USER=${KUBE_SSH_USER}, KEY_FILE=${KUBE_SSH_KEY_PATH}"
 #Download test
-curl --location https://dl.k8s.io/v1.21.0/kubernetes-test-linux-amd64.tar.gz |   tar --strip-components=3 -zxf - kubernetes/test/bin/e2e.test kubernetes/test/bin/ginkgo
+curl --location https://dl.k8s.io/v1.22.0/kubernetes-test-linux-amd64.tar.gz |   tar --strip-components=3 -zxf - kubernetes/test/bin/e2e.test kubernetes/test/bin/ginkgo
 #Run test
 # Some of these tests assume immediate binding, which is a random node, however if multiple volumes are involved sometimes they end up on different nodes and the test fails. Excluding that test.
 ./e2e.test -ginkgo.v -ginkgo.focus='External.Storage.*kubevirt.io.hostpath-provisioner' -ginkgo.skip='immediate binding|External.Storage.*should access to two volumes with the same volume mode and retain data across pod recreation on the same node \[LinuxOnly\]' -storage.testdriver=./hack/test-driver.yaml -provider=local

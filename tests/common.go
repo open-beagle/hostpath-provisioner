@@ -19,7 +19,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,6 +26,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	hostpathprovisioner "kubevirt.io/hostpath-provisioner-operator/pkg/client/clientset/versioned"
 
@@ -35,12 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-)
-
-var (
-	kubeConfig  = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
-	kubeURL     = flag.String("kubeurl", "", "kube URL url:port")
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 // Common allocation units
@@ -97,16 +92,33 @@ func getAllNodes(k8sClient *kubernetes.Clientset) (*corev1.NodeList, error) {
 
 // getHPPClient returns a HPP rest client
 func getHPPClient() (*hostpathprovisioner.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(*kubeURL, *kubeConfig)
+	cfg, err := config.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 	return hostpathprovisioner.NewForConfig(cfg)
 }
 
+// getExtClient gets an instance of a kubernetes client that includes all the api extensions.
+func getExtClient() (*extclientset.Clientset, error) {
+	cmd, err := config.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	return getExtClientFromRESTConfig(cmd)
+}
+
+// getKubeClientFromRESTConfig provides a function to get a K8s client using hte REST config
+func getExtClientFromRESTConfig(config *rest.Config) (*extclientset.Clientset, error) {
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.APIPath = "/apis"
+	config.ContentType = runtime.ContentTypeJSON
+	return extclientset.NewForConfig(config)
+}
+
 // getKubeClient returns a Kubernetes rest client
 func getKubeClient() (*kubernetes.Clientset, error) {
-	cmd, err := clientcmd.BuildConfigFromFlags(*kubeURL, *kubeConfig)
+	cmd, err := config.GetConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -121,10 +133,10 @@ func getKubeClientFromRESTConfig(config *rest.Config) (*kubernetes.Clientset, er
 	return kubernetes.NewForConfig(config)
 }
 
-// RunGoCLICommand executes gocli with given args
-func RunGoCLICommand(cliPath string, args ...string) (string, error) {
+// RunNodeSSHCommand executes gocli ssh with given args
+func RunNodeSSHCommand(args ...string) (string, error) {
 	var outBuf, errBuf bytes.Buffer
-	cmd := exec.Command(cliPath, args...)
+	cmd := exec.Command("../cluster-up/ssh.sh", args...)
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
 
@@ -148,6 +160,34 @@ func RunGoCLICommand(cliPath string, args ...string) (string, error) {
 			}
 			continue
 		}
+		_, err = returnBuf.Write([]byte(t))
+		if err != nil {
+			return "", err
+		}
+	}
+	return returnBuf.String(), nil
+}
+
+// RunGoCLICommand executes gocli with given args
+func RunGoCLICommand(args ...string) (string, error) {
+	var outBuf, errBuf bytes.Buffer
+	cmd := exec.Command("../cluster-up/cli.sh", args...)
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	err := cmd.Run()
+	if err != nil {
+		wd, _ := os.Getwd()
+		fmt.Fprintf(os.Stderr, "Working dir: %s\n", wd)
+		fmt.Fprintf(os.Stderr, "GoCLI standard output\n%s\n", outBuf.String())
+		fmt.Fprintf(os.Stderr, "GoCLI error output\n%s\n", errBuf.String())
+		return "", err
+	}
+
+	returnBuf := bytes.NewBuffer(nil)
+	scanner := bufio.NewScanner(&outBuf)
+	for scanner.Scan() {
+		t := scanner.Text()
 		_, err = returnBuf.Write([]byte(t))
 		if err != nil {
 			return "", err
