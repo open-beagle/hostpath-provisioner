@@ -5,27 +5,21 @@ platform:
   runner: 10.11.92.33
 
 workspace:
-  path: kubevirt.io/hostpath-provisioner
+  path: /go/src/kubevirt.io/hostpath-provisioner
 
 volumes:
-  - name: go
-    host:
-      path: /data/cache/golang/pkg
   - name: docker
     host:
       path: /var/run/docker.sock
 
 steps:
   - name: patch
-    image: registry.cn-qingdao.aliyuncs.com/wod/golang:1.17.3-bullseye
+    image: registry.cn-qingdao.aliyuncs.com/wod/golang:1.17.8-alpine
     commands:
-      - git apply .beagle/0001-provisioner.patch
+      - git apply .beagle/v0.12-provisioner.patch
 
   - name: golang
-    image: registry.cn-qingdao.aliyuncs.com/wod/devops-go-arch:1.17.3-bullseye
-    volumes:
-      - name: go
-        path: /go/pkg
+    image: registry.cn-qingdao.aliyuncs.com/wod/devops-go-arch:1.17.8-alpine
     settings:
       binary: hostpath-provisioner
       main: cmd/provisioner
@@ -36,11 +30,11 @@ steps:
       - name: docker
         path: /var/run/docker.sock
     settings:
-      base: registry.cn-qingdao.aliyuncs.com/wod/debian:bullseye-slim-amd64
+      base: registry.cn-qingdao.aliyuncs.com/wod/busybox:1.34-amd64
       dockerfile: .beagle/dockerfile
       cwd: dist
       repo: wod/hostpath-provisioner
-      version: 'v0.10.0'
+      version: 'v0.12.0'
       channel: amd64
       args: 'TARGETOS=linux,TARGETARCH=amd64'
       registry: registry.cn-qingdao.aliyuncs.com
@@ -55,11 +49,11 @@ steps:
       - name: docker
         path: /var/run/docker.sock
     settings:
-      base: registry.cn-qingdao.aliyuncs.com/wod/debian:bullseye-slim-arm64
+      base: registry.cn-qingdao.aliyuncs.com/wod/busybox:1.34-arm64
       dockerfile: .beagle/dockerfile
       cwd: dist
       repo: wod/hostpath-provisioner
-      version: 'v0.10.0'
+      version: 'v0.12.0'
       channel: arm64
       args: 'TARGETOS=linux,TARGETARCH=arm64'
       registry: registry.cn-qingdao.aliyuncs.com
@@ -74,11 +68,11 @@ steps:
       - name: docker
         path: /var/run/docker.sock
     settings:
-      base: registry.cn-qingdao.aliyuncs.com/wod/debian:bullseye-slim-ppc64le
+      base: registry.cn-qingdao.aliyuncs.com/wod/busybox:1.34-ppc64le
       dockerfile: .beagle/dockerfile
       cwd: dist
       repo: wod/hostpath-provisioner
-      version: 'v0.10.0'
+      version: 'v0.12.0'
       channel: ppc64le
       args: 'TARGETOS=linux,TARGETARCH=ppc64le'
       registry: registry.cn-qingdao.aliyuncs.com
@@ -93,11 +87,11 @@ steps:
       - name: docker
         path: /var/run/docker.sock
     settings:
-      base: registry.cn-qingdao.aliyuncs.com/wod/debian:bullseye-slim-mips64le
+      base: registry.cn-qingdao.aliyuncs.com/wod/busybox:1.34-mips64le
       dockerfile: .beagle/dockerfile
       cwd: dist
       repo: wod/hostpath-provisioner
-      version: 'v0.10.0'
+      version: 'v0.12.0'
       channel: mips64le
       args: 'TARGETOS=linux,TARGETARCH=mips64le'
       registry: registry.cn-qingdao.aliyuncs.com
@@ -107,14 +101,14 @@ steps:
         from_secret: REGISTRY_PASSWORD_ALIYUN
 
   - name: docker-arch
-    image: registry.cn-qingdao.aliyuncs.com/wod/devops-docker-manifest:v1.2.3
+    image: registry.cn-qingdao.aliyuncs.com/wod/devops-docker-manifest:1.0
     volumes:
       - name: docker
         path: /var/run/docker.sock
     settings:
       platforms: linux/amd64,linux/arm64,linux/ppc64le,linux/mips64le
-      template: registry.cn-qingdao.aliyuncs.com/wod/hostpath-provisioner:v0.10.0-ARCH
-      target: registry.cn-qingdao.aliyuncs.com/wod/hostpath-provisioner:v0.10.0
+      template: registry.cn-qingdao.aliyuncs.com/wod/hostpath-provisioner:v0.12.0-ARCH
+      target: registry.cn-qingdao.aliyuncs.com/wod/hostpath-provisioner:v0.12.0
       username:
         from_secret: REGISTRY_USER_ALIYUN
       password:
