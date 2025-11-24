@@ -56,13 +56,13 @@ import (
 )
 
 // annClass annotation represents the storage class associated with a resource:
-// - in PersistentVolumeClaim it represents required class to match.
-//   Only PersistentVolumes with the same class (i.e. annotation with the same
-//   value) can be bound to the claim. In case no such volume exists, the
-//   controller will provision a new one using StorageClass instance with
-//   the same name as the annotation value.
-// - in PersistentVolume it represents storage class to which the persistent
-//   volume belongs.
+//   - in PersistentVolumeClaim it represents required class to match.
+//     Only PersistentVolumes with the same class (i.e. annotation with the same
+//     value) can be bound to the claim. In case no such volume exists, the
+//     controller will provision a new one using StorageClass instance with
+//     the same name as the annotation value.
+//   - in PersistentVolume it represents storage class to which the persistent
+//     volume belongs.
 const annClass = "volume.beta.kubernetes.io/storage-class"
 
 // This annotation is added to a PV that has been dynamically provisioned by
@@ -1069,6 +1069,21 @@ func (ctrl *ProvisionController) shouldProvision(claim *v1.PersistentVolumeClaim
 	if claim.Spec.VolumeName != "" {
 		return false, nil
 	}
+
+	// Kubernetes 1.5+ provisioning with annStorageProvisioner
+	// Check provisioner annotation first to avoid fetching storage classes we don't handle
+	if ctrl.kubeVersion.AtLeast(utilversion.MustParseSemantic("v1.5.0")) {
+		if provisioner, found := claim.Annotations[annStorageProvisioner]; found {
+			if !ctrl.knownProvisioner(provisioner) {
+				// Not our provisioner, skip early
+				return false, nil
+			}
+		} else {
+			// No provisioner annotation, not for us
+			return false, nil
+		}
+	}
+
 	claimClass := util.GetPersistentVolumeClaimClass(claim)
 	class, err := ctrl.getStorageClass(claimClass)
 	if err != nil {
@@ -1076,28 +1091,21 @@ func (ctrl *ProvisionController) shouldProvision(claim *v1.PersistentVolumeClaim
 		return false, err
 	}
 
+	// Kubernetes 1.4 provisioning, evaluating class.Provisioner
+	if !ctrl.kubeVersion.AtLeast(utilversion.MustParseSemantic("v1.5.0")) {
+		if class.Provisioner != ctrl.provisionerName {
+			return false, nil
+		}
+		return true, nil
+	}
+
 	if qualifier, ok := ctrl.provisioner.(Qualifier); ok {
 		if !qualifier.ShouldProvision(claim, class.VolumeBindingMode) {
 			return false, nil
 		}
 	}
-	// Kubernetes 1.5 provisioning with annStorageProvisioner
-	if ctrl.kubeVersion.AtLeast(utilversion.MustParseSemantic("v1.5.0")) {
-		if provisioner, found := claim.Annotations[annStorageProvisioner]; found {
-			if ctrl.knownProvisioner(provisioner) {
-				return true, nil
-			}
-		}
-	} else {
-		// Kubernetes 1.4 provisioning, evaluating class.Provisioner
-		if class.Provisioner != ctrl.provisionerName {
-			return false, nil
-		}
 
-		return true, nil
-	}
-
-	return false, nil
+	return true, nil
 }
 
 // shouldDelete returns whether a volume should have its backing volume
